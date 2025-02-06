@@ -12,10 +12,15 @@ from pyspark.sql.utils import AnalysisException
 from sqlalchemy import create_engine
 from pyspark.sql.functions import col, lit, udf, when, array, split
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType, DoubleType, TimestampType, BooleanType
+from pyspark.sql.types import LongType, DoubleType, ArrayType
+import re
+
 
 import psycopg2
 import psycopg2.extras
 import pandas as pd
+import logging
+
 
 sys.path.append("..")
 import config
@@ -26,6 +31,7 @@ limit = True
 aeroflag = False
 global count
 count = 0
+
 
 # Store the start time when the script starts
 start_time = time.time()
@@ -113,11 +119,6 @@ for partition in consumer.assignment():
 
 print(f"Consuming messages from Kafka topic '{topic_name}'...")
 
-from datetime import datetime, timedelta
-import re
-from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType
-
 def get_last_hour_start_and_end():
     now = datetime.now()
     last_hour = now - timedelta(hours=1)
@@ -154,8 +155,7 @@ def convert_timestamp3(timestamp_ms):
     readable_date = datetime.utcfromtimestamp(timestamp_sec)
     return readable_date.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
-from pyspark.sql.types import StructType, StructField, StringType, LongType, DoubleType, ArrayType
-
+dummy_data = [{'Version': 10, 'Id': 7287347004814921728, 'Time': datetime.now().isoformat(), 'RequestTime': datetime.now().isoformat(), 'AdId': 1234567890, 'AppSiteId': 1, 'SubAppSiteId': 2, 'DeviceBrandId': 3, 'DeviceModelId': 3, 'DeviceOsId': 3, 'DeviceOSVersion': '10.0', 'DeviceTypeId': 4, 'Custom_DeviceCapabilityIds': ['cap1', 'cap2'], 'CountryId': 1, 'RegionId': 2, 'CityId': 3, 'MobileOperatorId': 1, 'Type': 18, 'EventCode': 'right', 'UserId': str(uuid.uuid4()), 'RequestId': str(uuid.uuid4()), 'AdCreativeUnitId': 56789, 'KeywordIds': [1, 2, 3], 'U_KeywordIds': [4, 5], 'AdTypeIds': [6], 'GenderId': 1, 'U_GenderId': 1, 'Age': 30, 'U_Age': 30, 'CustomParameters': {'param1': 'value1', 'param2': 'value2'}, 'EnvironmentType': 0, 'DeviceOrientationId': 1, 'AdResponseFormatId': 1, 'BlackBerryVendorId': 1234, 'LanguageId': 1, 'RequestVersion': 1, 'IP': '192.168.1.1', 'ClientServerIP': '192.168.1.2', 'CampaignType': 0, 'HttpRefererId': 'referer123', 'IsWiFi': True, 'IsOperaBrowser': False, 'IsProxyTraffic': False, 'IsBlackBerry': False, 'Latitude': 40.7128, 'Longitude': -74.0060, 'FraudErrorCode': 16, 'XForwardedFor': None, 'PartnerRefId': 'partner123', 'ChannelId': 1, 'HostIP': '172.22.112.108', 'HostName': 'DESKTOP-MDKCIE7', 'StatColumnName': 'column1', 'CreativeUnitIds': [123, 456], 'Demand_MappingId': 789, 'Deals_AdCreativeUnits': {'deal1': 'value1', 'deal2': 'value2'}, 'RTBSourceTID': 'rtbsource123', 'PartnerImpTagId': 'partnerimp123', 'BidFloor': 0.5, 'metadata': {'adcreativeunitsdata': [{'key': 1, 'value': {'adid': 1, 'adgroupid': 2, 'campaignid': 3, 'accountid': 4, 'campaigntype': 1, 'advertiserid': 5, 'advassociationid': 6, 'retail': {'productid': 7}}}]}, 'appsiteinfo': {'accountid': 8}, 'undetecteddevicedata': [{'brandname': 'Apple', 'modelname': 'iPhone 14', 'source': 1}], 'AudienceSegmentDataBillSummary': {'summary1': 'value1'}, 'VideoData': {'MinDuration': 30, 'MaxDuration': 120, 'Width': 1920, 'Height': 1080}, 'NativeData': {'IconWidth': 48, 'IconHeight': 48}, 'PartnerSDK': 'SDKv1', 'PartnerSDKVersion': '1.0.0', 'TrackUser': 'usertrack1', 'AdCreativeUnitsFormat': 'format1', 'IsInterstitial': False, 'IsBillable': False, 'PartnerUserId': 'partneruser123', 'PartnerBuyerUserId': 'partnerbuyer123', 'AuctionType': 0, 'ImpressionMetrics': {'metric1': 'value1'}, 'Trace': 'trace1', 'SubPublisherData': 'subpublisher123', 'SSPPartnerId': 'ssp123', 'BillingMetaData': {'billdata': 'value1'}, 'IsCreativeUnitsDerived': False, 'IsGoogleProxy': False, 'AdMarkup': '<admarkup></admarkup>', 'CellularType': 0, 'BillableCost': 0.0, 'AdjustedNetCost': 0.0, 'NetCost': 0.0, 'AdFalconRevenue': 0.0, 'GrossCost': 0.0, 'CostItems': {'item1': 'cost1'}, 'AgencyRevenue': 0.0, 'CoordinatesSourceType': 0, 'CoordinatesIsSystemCalculated': None, 'Conversion': {'conversion_type': 'type1'}, 'ExtraUserData': {'TagId': 123, 'Language': 'en', 'ScreenWidth': 1920, 'ScreenHeight': 1080, 'Density': 2.0}, 'UserAliasId': 'alias123', 'OperatorDetectedByMNC': False, 'ExternalDSPs': None, 'IsExternalDSPRequested': False, 'DeviceId': 'device123', 'PartnerCampaignIds': ['campaign1', 'campaign2'], 'UserAgentKey': 3264627309505647518, 'IABCategories': {'category1': 'value1'}, 'Event_DeviceData': {'DeviceBrandId': 101, 'DeviceOSId': 303}, 'Event_LocationData': {'CountryId': 1, 'RegionId': 2, 'OperatorId': 1, 'CityId': 3}, 'CreativeProtocolIds': [1, 2], 'PageUrl': 'https://example.com', 'ProvidersSegments': ['segment1'], 'SponsoredAdData': {'ad1': 'sponsored1'}, 'AdCreativeIds_SearchKeywordIds': ['keyword1'], 'BiddingData': {'bid1': 0.1}}]
 # Define schema to handle StructType
 schema = StructType([
     StructField("Version", LongType(), True),
@@ -220,48 +220,31 @@ schema = StructType([
     StructField("RTBSourceTID", StringType(), True),
     StructField("PartnerImpTagId", StringType(), True),
     StructField("BidFloor", DoubleType(), True),
-    # StructField("MetaData", StructType([
-    #     StructField("AdCreativeUnitsData", StructType([]), True),
-    #     StructField("AppSiteData", StructType([
-    #         StructField("AccountId", LongType(), True)
-    #     ]), True),
-    #     StructField("UndetectedDeviceData", ArrayType(StringType()), True),
-    #     StructField("RichMediaTransaction", StructType([
-    #         StructField("EventInfo", StringType(), True),
-    #         StructField("DeviceId", StringType(), True)
-    #     ]), True)
-    # ]), True),
-
-
-
-
     StructField("metadata", StructType([
         StructField("adcreativeunitsdata", ArrayType(StructType([
-            StructField("key", IntegerType, nullable=True),
+            StructField("key", IntegerType(), True),
             StructField("value", StructType([
-                StructField("adid", IntegerType, nullable=True),
-                StructField("adgroupid", IntegerType, nullable=True),
-                StructField("campaignid", IntegerType, nullable=True),
-                StructField("accountid", IntegerType, nullable=True),
-                StructField("campaigntype", IntegerType, nullable=True),
-                StructField("advertiserid", IntegerType, nullable=True),
-                StructField("advassociationid", IntegerType, nullable=True),
+                StructField("adid", IntegerType(), True),
+                StructField("adgroupid", IntegerType(), True),
+                StructField("campaignid", IntegerType(), True),
+                StructField("accountid", IntegerType(), True),
+                StructField("campaigntype", IntegerType(), True),
+                StructField("advertiserid", IntegerType(), True),
+                StructField("advassociationid", IntegerType(), True),
                 StructField("retail", StructType([
-                    StructField("productid", IntegerType, nullable=True)
-                ]), nullable=True),
-            ]), nullable=True),
-        ]), nullable=True)),
+                    StructField("productid", IntegerType(), True)
+                ]), True),
+            ]), True),
+        ]), True)),
         StructField("appsiteinfo", StructType([
-            StructField("accountid", IntegerType, nullable=True)
-        ]), nullable=True),
+            StructField("accountid", IntegerType(), True)
+        ]), True),
         StructField("undetecteddevicedata", ArrayType(StructType([
-            StructField("brandname", StringType, nullable=True),
-            StructField("modelname", StringType, nullable=True),
-            StructField("source", IntegerType, nullable=True)
-        ]), nullable=True))
-    ]), nullable=True),
-
-
+            StructField("brandname", StringType(), True),
+            StructField("modelname", StringType(), True),
+            StructField("source", IntegerType(), True)
+        ]), True))
+    ]), True),
 
     StructField("AudienceSegmentDataBillSummary", StringType(), True),
     StructField("VideoData", StructType([
@@ -361,7 +344,6 @@ schema = StructType([
     StructField("BiddingData", StringType(), True),
     StructField("UserAgent", StringType(), True),
     StructField("HttpReferer", StringType(), True)])
-
 # Initialize Spark session once outside the loop
 spark = SparkSession.builder.appName("KafkaSpark").getOrCreate()
 
@@ -409,20 +391,17 @@ try:
             # batch_data.append(default_values)
             print("count batch length : ", len(batch_data))
 
-            # If the batch data is empty, create a dummy row
-            if len(batch_data) == 0:
-                print("⚠️ Warning: batch_data is empty, forcing write with dummy row")
-
-                dummy_data = [{
-                    'Version': 10, 'Id': 7287347004814921728, 'Time': datetime.now().isoformat(), 'RequestTime': datetime.now().isoformat(), 'AdId': 1234567890, 'AppSiteId': 101, 'SubAppSiteId': 202, 'DeviceBrandId': 301, 'DeviceModelId': 302, 'DeviceOsId': 303, 'DeviceOSVersion': '10.0', 'DeviceTypeId': 404, 'Custom_DeviceCapabilityIds': ['cap1', 'cap2'], 'CountryId': 1, 'RegionId': 2, 'CityId': 3, 'MobileOperatorId': 1, 'Type': 18, 'EventCode': 'right', 'UserId': str(uuid.uuid4()), 'RequestId': str(uuid.uuid4()), 'AdCreativeUnitId': 56789, 'KeywordIds': [1, 2, 3], 'U_KeywordIds': [4, 5], 'AdTypeIds': [6], 'GenderId': 1, 'U_GenderId': 1, 'Age': 30, 'U_Age': 30, 'CustomParameters': {'param1': 'value1', 'param2': 'value2'}, 'EnvironmentType': 0, 'DeviceOrientationId': 1, 'AdResponseFormatId': 1, 'BlackBerryVendorId': 1234, 'LanguageId': 1, 'RequestVersion': 1, 'IP': '192.168.1.1', 'ClientServerIP': '192.168.1.2', 'CampaignType': 0, 'HttpRefererId': 'referer123', 'IsWiFi': True, 'IsOperaBrowser': False, 'IsProxyTraffic': False, 'IsBlackBerry': False, 'Latitude': 40.7128, 'Longitude': -74.0060, 'FraudErrorCode': 16, 'XForwardedFor': None, 'PartnerRefId': 'partner123', 'ChannelId': 1, 'HostIP': '172.22.112.108', 'HostName': 'DESKTOP-MDKCIE7', 'StatColumnName': 'column1', 'CreativeUnitIds': [123, 456], 'Demand_MappingId': 789, 'Deals_AdCreativeUnits': {'deal1': 'value1', 'deal2': 'value2'}, 'RTBSourceTID': 'rtbsource123', 'PartnerImpTagId': 'partnerimp123', 'BidFloor': 0.5, 'MetaData': {'AdCreativeUnitsData': {}, 'AppSiteData': {'AccountId': 0}}, 'AudienceSegmentDataBillSummary': {'summary1': 'value1'}, 'VideoData': {'MinDuration': 30, 'MaxDuration': 120, 'Width': 1920, 'Height': 1080}, 'NativeData': {'IconWidth': 48, 'IconHeight': 48}, 'PartnerSDK': 'SDKv1', 'PartnerSDKVersion': '1.0.0', 'TrackUser': 'usertrack1', 'AdCreativeUnitsFormat': 'format1', 'IsInterstitial': False, 'IsBillable': False, 'PartnerUserId': 'partneruser123', 'PartnerBuyerUserId': 'partnerbuyer123', 'AuctionType': 0, 'ImpressionMetrics': {'metric1': 'value1'}, 'Trace': 'trace1', 'SubPublisherData': 'subpublisher123', 'SSPPartnerId': 'ssp123', 'BillingMetaData': {'billdata': 'value1'}, 'IsCreativeUnitsDerived': False, 'IsGoogleProxy': False, 'AdMarkup': '<admarkup></admarkup>', 'CellularType': 0, 'BillableCost': 0.0, 'AdjustedNetCost': 0.0, 'NetCost': 0.0, 'AdFalconRevenue': 0.0, 'GrossCost': 0.0, 'CostItems': {'item1': 'cost1'}, 'AgencyRevenue': 0.0, 'CoordinatesSourceType': 0, 'CoordinatesIsSystemCalculated': None, 'Conversion': {'conversion_type': 'type1'}, 'ExtraUserData': {'TagId': 123, 'Language': 'en', 'ScreenWidth': 1920, 'ScreenHeight': 1080, 'Density': 2.0}, 'UserAliasId': 'alias123', 'OperatorDetectedByMNC': False, 'ExternalDSPs': None, 'IsExternalDSPRequested': False, 'DeviceId': 'device123', 'PartnerCampaignIds': ['campaign1', 'campaign2'], 'UserAgentKey': 3264627309505647518, 'IABCategories': {'category1': 'value1'}, 'Event_DeviceData': {'DeviceBrandId': 101, 'DeviceOSId': 303}, 'Event_LocationData': {'CountryId': 1, 'RegionId': 2, 'OperatorId': 1, 'CityId': 3}, 'CreativeProtocolIds': [1, 2], 'PageUrl': 'https://example.com', 'ProvidersSegments': ['segment1'], 'SponsoredAdData': {'ad1': 'sponsored1'}, 'AdCreativeIds_SearchKeywordIds': ['keyword1'], 'BiddingData': {'bid1': 0.1}
-                    }]
-                batch_data.append(dummy_data)
+            # # If the batch data is empty, create a dummy row
+            # if len(batch_data) == 0:
+            #     print("⚠️ Warning: batch_data is empty, forcing write with dummy row")
+            #     batch_data.append(dummy_data)
 
 
             
             # Write data in batches
-            if len(batch_data) >= 3:  # Adjust batch size as needed
+            if len(batch_data) >= 2:  # Adjust batch size as needed
                 df = spark.createDataFrame(batch_data, schema=schema)
+                df.show()
                 df.write.mode("append").parquet(hdfs_path)
                 batch_data.clear()  # Clear batch after writing
 
