@@ -90,10 +90,10 @@ spark_builder = (
 
 if environment == "prod":
     hdfs_url = "hdfs://hd01.iadfalcon.com:8020"
-    spark_builder = spark_builder.config("spark.hadoop.fs.defaultFS", hdfs_url ).config("spark.network.timeout", "800s")
+    spark_builder = spark_builder.config("spark.hadoop.fs.defaultFS", hdfs_url ).config("spark.network.timeout", "80000s")
 elif environment == "dev" or environment == "ldev":
     hdfs_url = "hdfs://172.22.137.155:8020"
-    spark_builder = spark_builder.config("spark.hadoop.fs.defaultFS", hdfs_url).config("spark.network.timeout", "1000s")
+    spark_builder = spark_builder.config("spark.hadoop.fs.defaultFS", hdfs_url).config("spark.network.timeout", "100000s")
 else:
     spark_builder = spark_builder.appName("Parquet Reader")
 
@@ -371,41 +371,59 @@ try:
             f_b_day = str(int(f_b_day))
             hdfs_path = f"{hdfs_url}/temp/kafka02/topics_test01/richmedia_ingest_logs/batches/{f_b_year_month}/batchid={f_batchid}/hourid={f_b_hourid}/minute=00/{f_batchid_with_sec}"
 
+            import json
+            from pyspark.sql import SparkSession
+            from pyspark.sql.types import StructType
+
+            # Assuming `batch_data`, `spark`, `schema`, `hdfs_path`, and `message` are defined elsewhere
+
             print("\n\n############# Start offset #################")
             print(" message : fetched\n")
-            offset1 = message.value
-            print(" offset1 : : fetched\n")
-            decoded_message = offset1.decode('utf-8')
-            # decoded_message = offset1.decode('latin-1')
-            print(" decoded_message : done \n")
 
-            
-            default_values = json.loads(decoded_message)
+            # Ensure message.value is not None or empty before decoding
+            if message.value and message.key is None:
+                offset1 = message.value
+                print(" offset1 : : fetched\n")
 
-            # Convert fields to correct types
-            default_values["Version"] = int(default_values["Version"])
-            default_values["Id"] = int(default_values["Id"])
+                # Decode the message
+                decoded_message = offset1.decode('utf-8')
+                print(" decoded_message : done \n")
 
+                # Load the JSON message into a Python dictionary
+                default_values = json.loads(decoded_message)
 
+                # Convert fields to correct types (ensure these keys exist)
+                default_values["Version"] = int(default_values.get("Version", 0))
+                default_values["Id"] = int(default_values.get("Id", 0))
 
-            # batch_data.append(default_values)
-            print("count batch length : ", len(batch_data))
+                # Append to batch_data
+                batch_data.append(default_values)
 
-            # # If the batch data is empty, create a dummy row
-            # if len(batch_data) == 0:
-            #     print("⚠️ Warning: batch_data is empty, forcing write with dummy row")
-            #     batch_data.append(dummy_data)
+                print("count batch length : ", len(batch_data))
 
+                # # Check if batch data is empty and handle accordingly (optional)
+                # if len(batch_data) == 0:
+                #     print("⚠️ Warning: batch_data is empty, forcing write with dummy row")
+                #     batch_data.append(dummy_data)  # Ensure dummy_data is defined elsewhere
 
-            
-            # Write data in batches
-            if len(batch_data) >= 2:  # Adjust batch size as needed
-                print("creating batch df with sparse matrix")
-                df = spark.createDataFrame(batch_data, schema=schema)
-                print("Created df successfully with sparse matrix")
-                df.show()
-                df.write.mode("append").parquet(hdfs_path)
-                batch_data.clear()  # Clear batch after writing
+                # Write data in batches when batch size is met
+                if len(batch_data) >= 10:  # Adjust batch size as needed
+                    print("creating batch df with sparse matrix")
+                    # Convert the batch_data to a DataFrame using the predefined schema
+                    df = spark.createDataFrame(batch_data, schema=schema)
+                    print("Created df successfully with sparse matrix")
+                    # df.show()
+
+                    # Write the DataFrame to HDFS as Parquet (ensure hdfs_path is defined)
+                    df.write.mode("append").parquet(hdfs_path)
+                    print("Data written at this location :\n",hdfs_path)
+
+                    # Clear the batch data after writing
+                    batch_data.clear()
+
+            else:
+                print("No message found in Kafka message.")
+
 
         except Exception as e:
             print(f"Error processing message: {e}")
