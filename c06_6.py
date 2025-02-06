@@ -288,7 +288,13 @@ schema = StructType([
     StructField("PartnerSDK", StringType(), True),
     StructField("PartnerSDKVersion", StringType(), True),
     StructField("TrackUser", StringType(), True),
-    StructField("AdCreativeUnitsFormat", StringType(), True),
+    # StructField("AdCreativeUnitsFormat", StringType(), True),
+    StructField("adcreativeunitsformat", ArrayType(
+        StructType([
+            StructField("key", IntegerType(), True),
+            StructField("value", IntegerType(), True)
+        ])
+    ), True),
     StructField("IsInterstitial", StringType(), True),
     StructField("IsBillable", StringType(), True),
     StructField("PartnerUserId", StringType(), True),

@@ -11,7 +11,7 @@ from pyspark.sql.utils import AnalysisException
 from sqlalchemy import create_engine
 from pyspark.sql.functions import col, lit, udf, when, array, split
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType, DoubleType, TimestampType, BooleanType
-
+from pyspark.sql.functions import col, explode
 import psycopg2
 import psycopg2.extras
 import pandas as pd
@@ -112,7 +112,7 @@ if spark is None or spark.sparkContext is None:
     raise RuntimeError("Spark session could not be created!")
 
 # hdfs_path = f"{hdfs_url}/dw/kafka/topics/richmedia_ingest_logs/batches/{f_b_year_month}/batchid={f_batchid}/hourid={f_b_hourid}/minute=00/*"
-hdfs_path = f"{hdfs_url}/temp/kafka02/topics_test/richmedia_ingest_logs/batches/{f_b_year_month}/batchid={f_batchid}/hourid={f_b_hourid}/minute=00/*"
+hdfs_path = "hdfs://172.22.137.155:8020/temp/kafka02/topics_test01/richmedia_ingest_logs/batches/202502/batchid=202502061005/hourid=2025020610/minute=00/*"
 
 
 print("Starting pipeline...")
@@ -155,12 +155,28 @@ print("Start time: ",start_time)
 #         cursor.close()
 #         conn.close()
 # print("MySQL data loaded to the dataframe successfully")
-
 spark_df = spark.read.parquet(hdfs_path)
 
-spark_df.show(1)
-# spark_df.printSchema()
+# df = spark_df.withColumn("adcreativeunitsdata", explode(col("metadata.adcreativeunitsdata")))
 
+# # Selecting the necessary fields
+# df = df.select(
+#     col("adcreativeunitsformat.key").alias("key1"),
+#     col("adcreativeunitsdata.key").alias("key"),
+#     col("adcreativeunitsdata.value.adid").alias("adid"),
+#     col("adcreativeunitsdata.value.adgroupid").alias("adgroupid"),
+#     col("adcreativeunitsdata.value.campaignid").alias("campaignid"),
+#     col("adcreativeunitsdata.value.accountid").alias("accountid"),
+#     col("adcreativeunitsdata.value.campaigntype").alias("campaigntype"),
+#     col("adcreativeunitsdata.value.advertiserid").alias("advertiserid"),
+#     col("adcreativeunitsdata.value.advassociationid").alias("advassociationid"),
+#     col("adcreativeunitsdata.value.retail").alias("retail")
+# )
+
+# df.show(1)
+spark_df.show(1)
+spark_df.printSchema()
+exit()
 # Group by and aggregate
 agg_df = spark_df.groupBy(
     "time",
