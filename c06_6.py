@@ -372,12 +372,12 @@ try:
             hdfs_path = f"{hdfs_url}/temp/kafka02/topics_test01/richmedia_ingest_logs/batches/{f_b_year_month}/batchid={f_batchid}/hourid={f_b_hourid}/minute=00/{f_batchid_with_sec}"
 
             print("\n\n############# Start offset #################")
-            print(" message : \n", message)
+            print(" message : fetched\n")
             offset1 = message.value
-            print(" offset1 : \n", offset1)
+            print(" offset1 : : fetched\n")
             decoded_message = offset1.decode('utf-8')
             # decoded_message = offset1.decode('latin-1')
-            print(" decoded_message : \n", decoded_message)
+            print(" decoded_message : done \n")
 
             
             default_values = json.loads(decoded_message)
@@ -400,7 +400,9 @@ try:
             
             # Write data in batches
             if len(batch_data) >= 2:  # Adjust batch size as needed
+                print("creating batch df with sparse matrix")
                 df = spark.createDataFrame(batch_data, schema=schema)
+                print("Created df successfully with sparse matrix")
                 df.show()
                 df.write.mode("append").parquet(hdfs_path)
                 batch_data.clear()  # Clear batch after writing
