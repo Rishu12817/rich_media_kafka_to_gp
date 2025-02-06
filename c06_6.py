@@ -375,7 +375,7 @@ try:
             f_b_min = '05'
             f_b_month = str(int(f_b_month))
             f_b_day = str(int(f_b_day))
-            hdfs_path = f"{hdfs_url}/temp/kafka02/topics_test01/richmedia_ingest_logs/batches/{f_b_year_month}/batchid={f_batchid}/hourid={f_b_hourid}/minute=00/{f_batchid_with_sec}"
+            hdfs_path = f"{hdfs_url}/temp/kafka02/topics_test02/richmedia_ingest_logs/batches/{f_b_year_month}/batchid={f_batchid}/hourid={f_b_hourid}/minute=00/{f_batchid_with_sec}"
 
             import json
             from pyspark.sql import SparkSession
@@ -434,12 +434,14 @@ try:
         except Exception as e:
             print(f"Error processing message: {e}")
 
-
-
 except KeyboardInterrupt:
     print("Stopping consumer...")
 
-# Write any remaining data before exiting
-if batch_data:
-    df = spark.createDataFrame(batch_data, schema=schema)
-    df.write.mode("append").parquet(hdfs_path)
+spark.stop()
+consumer.close()
+
+
+# # Write any remaining data before exiting
+# if batch_data:
+#     df = spark.createDataFrame(batch_data, schema=schema)
+#     df.write.mode("append").parquet(hdfs_path)

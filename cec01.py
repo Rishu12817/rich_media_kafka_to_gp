@@ -112,7 +112,8 @@ if spark is None or spark.sparkContext is None:
     raise RuntimeError("Spark session could not be created!")
 
 # hdfs_path = f"{hdfs_url}/dw/kafka/topics/richmedia_ingest_logs/batches/{f_b_year_month}/batchid={f_batchid}/hourid={f_b_hourid}/minute=00/*"
-hdfs_path = "hdfs://172.22.137.155:8020/temp/kafka02/topics_test01/richmedia_ingest_logs/batches/202502/batchid=202502061005/hourid=2025020610/minute=00/*"
+# hdfs_path="C:\\Users\\rishu\\Downloads\\2024042508\\hourid=2024042508\\minute=00*"
+hdfs_path = "hdfs://172.22.137.155:8020/temp/kafka02/topics_test02/richmedia_ingest_logs/batches/202502/batchid=202502061005/hourid=2025020610/minute=00/*"
 
 
 print("Starting pipeline...")
@@ -157,6 +158,11 @@ print("Start time: ",start_time)
 # print("MySQL data loaded to the dataframe successfully")
 spark_df = spark.read.parquet(hdfs_path)
 
+
+# spark_df.show(1)
+# # spark_df.printSchema()
+# exit()
+
 # df = spark_df.withColumn("adcreativeunitsdata", explode(col("metadata.adcreativeunitsdata")))
 
 # # Selecting the necessary fields
@@ -174,10 +180,39 @@ spark_df = spark.read.parquet(hdfs_path)
 # )
 
 # df.show(1)
-spark_df.show(1)
+# spark_df.show(1)
 spark_df.printSchema()
-exit()
-# Group by and aggregate
+# # exit()
+
+from pyspark.sql.functions import col, sum, count, explode
+
+# Exploding the adcreativeunitsdata array inside metadata
+spark_df = spark_df.withColumn("adcreativeunitsdata", explode(col("metadata.adcreativeunitsdata")))
+# Ensure nested columns are selected explicitly before grouping
+spark_df = spark_df.withColumn("adid", col("adcreativeunitsdata.value.adid")) \
+                   .withColumn("adcreativeunits", col("adcreativeunitsdata.key")) \
+                   .withColumn("adgroupid", col("adcreativeunitsdata.value.adgroupid")) \
+                   .withColumn("campaignid", col("adcreativeunitsdata.value.campaignid")) \
+                   .withColumn("accountid", col("adcreativeunitsdata.value.accountid")) \
+                   .withColumn("campaigntype", col("adcreativeunitsdata.value.campaigntype")) \
+                   .withColumn("advertiserid", col("adcreativeunitsdata.value.advertiserid")) \
+                   .withColumn("advassociationid", col("adcreativeunitsdata.value.advassociationid")) 
+print(spark_df.columns)
+# Cast numeric columns to double
+numeric_cols = [
+    # "Appsiterevenue",
+    "AdFalconRevenue",
+    "BillableCost",
+    "AdjustedNetCost",
+    "NetCost",
+    "GrossCost",
+    "AgencyRevenue"
+]
+
+for col_name in numeric_cols:
+    spark_df = spark_df.withColumn(col_name, col(col_name).cast("double"))
+
+# Perform group by and aggregation
 agg_df = spark_df.groupBy(
     "time",
     "adcreativeunitsformat",
@@ -201,60 +236,75 @@ agg_df = spark_df.groupBy(
     "hostip",
     "hostname",
     "creativeunitids",
-    "costitems"
-    ).agg(
-    sum("spend").alias("sum_spend"),
-    sum("appsiterevenue").alias("sum_appsiterevenue"),
-    sum("adfalconrevenue").alias("sum_adfalconrevenue"),
-    sum("billablecost").alias("sum_billablecost"),
-    sum("adjustednetcost").alias("sum_adjustednetcost"),
-    sum("netcost").alias("sum_netcost"),
-    sum("grosscost").alias("sum_grosscost"),
-    sum("agencyrevenue").alias("sum_agencyrevenue"),
-    count("requestid").alias("row_count")
-    )
-
+    "costitems",
+    "adid",  # Now explicitly available
+    "adgroupid",
+    "campaignid",
+    "accountid",
+    "campaigntype",
+    "advertiserid",
+    "advassociationid",
+    "EventCode",
+    "adcreativeunits"
+).agg(
+    sum(col("AdFalconRevenue")).alias("sum_adfalconrevenue"),
+    sum(col("BillableCost")).alias("sum_billablecost"),
+    sum(col("AdjustedNetCost")).alias("sum_adjustednetcost"),
+    sum(col("NetCost")).alias("sum_netcost"),
+    sum(col("GrossCost")).alias("sum_grosscost"),
+    sum(col("AgencyRevenue")).alias("sum_agencyrevenue"),
+    count("RequestId").alias("row_count"),
+    count("DeviceId").alias("deviceid_count")
+)
 print("Spark data loaded to the dataframe successfully")
 if (flag) : agg_df.show(2)
 
-exit()
-adcreative_ids = []
-adcreativeunitsformat_keys = []
-for  row in agg_df.collect():
-    key = row['adcreativeunitsformat'][0]['key']
-    adcreative_ids.append(key)  # Append the key to adcreative_ids
-    # Assuming you have a column named 'adcreative_id' in the DataFrame, replace it with        the correct column     name
-    # adcreativeunitsformat_keys.append((key, row['adcreative_id']))
-    if (flag) : print("adcreativeunitsformat_Key:", key)
+# exit()
+# adcreative_ids = []
+# adcreativeunitsformat_keys = []
+# for  row in agg_df.collect():
+#     key = row['adcreativeunitsformat'][0]['key']
+#     adcreative_ids.append(key)  # Append the key to adcreative_ids
+#     # Assuming you have a column named 'adcreative_id' in the DataFrame, replace it with        the correct column     name
+#     # adcreativeunitsformat_keys.append((key, row['adcreative_id']))
+#     if (flag) : print("adcreativeunitsformat_Key:", key)
 
-if (flag) : print("adcreative_ids : ", adcreative_ids)
+# if (flag) : print("adcreative_ids : ", adcreative_ids)
 
-# Add adcreative ID column to DataFrame 406028
-if environment == "prod" :
-    get_adcreative_id_udf = udf(lambda key: key, IntegerType())
-if environment == "dev":
-    get_adcreative_id_udf = udf(lambda key: 406028 if key == 401646 else key, IntegerType())
+# # Add adcreative ID column to DataFrame 406028
+# if environment == "prod" :
+#     get_adcreative_id_udf = udf(lambda key: key, IntegerType())
+# if environment == "dev":
+#     get_adcreative_id_udf = udf(lambda key: 406028 if key == 401646 else key, IntegerType())
 
-agg_df = agg_df.withColumn("adcreative_id", get_adcreative_id_udf(col("adcreativeunitsformat")[0]["key"]))
+# agg_df = agg_df.withColumn("adcreative_id", get_adcreative_id_udf(col("adcreativeunitsformat")[0]["key"]))
 
-# Show DataFrame after adding adcreative ID
-if (flag) : agg_df.show(20) # will comment
-print("Spark DataFrame created successfully")
-
-
+# # Show DataFrame after adding adcreative ID
+# if (flag) : agg_df.show(20) # will comment
+# print("Spark DataFrame created successfully")
 
 
 
 
-############################################
-# Convert pandas DataFrame to Spark DataFrame
-pandas_df = spark.createDataFrame(df)
+
+
+# ############################################
+# # Convert pandas DataFrame to Spark DataFrame
+# pandas_df = spark.createDataFrame(df)
 
 # Join the two DataFrames on 'adcreative_id'
-joined_df = pandas_df.join(agg_df, agg_df['adcreative_id'] == pandas_df['adcreativeunits'])
+# joined_df = pandas_df.join(agg_df, agg_df['adcreative_id'] == pandas_df['adcreativeunits'])
+joined_df = agg_df
 
 # Show the joined DataFrame
 if (flag) : joined_df.show(10)
+agg_count= joined_df.count()
+if (flag) : print("agg_count: ",agg_count)
+if (agg_count) < 1 : 
+    print("No data available.. exiting")
+    spark.stop()
+    sys.exit(1)
+
 
 # Assuming joined_df is the joined DataFrame
 
@@ -299,7 +349,6 @@ monthid = f"{year_month}01"
 
 ## add dateid join datafram
 joined_df = joined_df.withColumn("dateid", lit(dateid))
-print("\nBoth Dataframe are combined together and ready to be insert data\n")
 # Get the column names from the database table
 
 
@@ -324,7 +373,7 @@ batch_size = 5000
 final_gp_insert_query_values_fsh = []
 tablename= "fact_stat_customevent_h"
 
-final_gp_insert_query_fields_fsh = f"""INSERT INTO {tablename} (hour_key,      dateid, hourid,     requesthourid, advaccountid,  appsiteid, subappsiteid, countryid,       regionid, cityid, mobileoperatorid,   devicebrandid, devicemodelid, deviceosid, genderid,      u_genderid, spend, appsiterevenue, adfalconrevenue,   languageid, environmenttype, netcost,     adjustednetcost, billablecost, grosscost, agencyrevenue, Adid,  platformfee, datafee,      thirdpartyfee, requests, requests_d, unfilledrequests, unfilledrequests_d,            connectiontype, creativeunitgroupid, pubaccountid, channelid, CampaignId, campaigntype,        adtypegroupid,  {event_field}, dealid, wins, advertiserid, requestdateid, adgroupid,       adcreativeunitid, keywordgroupid,   u_keywordgroupid, requests_dcr, requests_cr, pageviews,        vcreativeviews, vstart, vfirstquartile, vmidpoint,    vthirdquartile, vcomplete,    conversions, requests_ad, requests_ag, requests_ca, requests_dad, requests_dag,          requests_dca, totaldataproviderrevenue, advassociationid, conv_pr, conv_pr_ct, conv_pr_vt,     conv_ot,     conv_ot_ct, conv_ot_vt, conv_pr_rev, conv_pr_ct_rev, conv_pr_vt_rev,    conv_ot_rev, agegroupid, u_agegroupid) VALUES
+final_gp_insert_query_fields_fsh = f"""INSERT INTO {tablename} (hour_key,      dateid, hourid,     requesthourid, advaccountid,  appsiteid, subappsiteid, countryid,       regionid, cityid, mobileoperatorid,   devicebrandid, devicemodelid, deviceosid, genderid,      u_genderid, spend, appsiterevenue, adfalconrevenue,   languageid, environmenttype, netcost,     adjustednetcost, billablecost, grosscost, agencyrevenue, Adid,  platformfee, datafee,      thirdpartyfee, requests, requests_d, unfilledrequests, unfilledrequests_d,            connectiontype, creativeunitgroupid, pubaccountid, channelid, CampaignId, campaigntype,        adtypegroupid,  custom_event_count, dealid, wins, advertiserid, requestdateid, adgroupid,       adcreativeunitid, keywordgroupid,   u_keywordgroupid, requests_dcr, requests_cr, pageviews,        vcreativeviews, vstart, vfirstquartile, vmidpoint,    vthirdquartile, vcomplete,    conversions, requests_ad, requests_ag, requests_ca, requests_dad, requests_dag,          requests_dca, totaldataproviderrevenue, advassociationid, conv_pr, conv_pr_ct, conv_pr_vt,     conv_ot,     conv_ot_ct, conv_ot_vt, conv_pr_rev, conv_pr_ct_rev, conv_pr_vt_rev,    conv_ot_rev, agegroupid, u_agegroupid, event_name, unique_event_count) VALUES
 """ 
 
 joined_df_list = joined_df.collect()
@@ -410,7 +459,7 @@ for j, row in  enumerate(joined_df_list):
     {row['adcreativeunits'] if row['adcreativeunits'] is not None else 0},
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     {row['association_adv_id'] if row['association_adv_id'] is not None else 0},
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {name_id}, {name_id})"""
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {name_id}, {name_id}, {EventCode}, {deviceid_count})"""
     )
 
     # If the batch size is reached or it's the last row, execute the batch
